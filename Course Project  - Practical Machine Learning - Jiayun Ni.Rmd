@@ -1,0 +1,165 @@
+---
+title: "Course Project - Practical Machine Learning - Jiayun Ni"
+author: "Jiayun Ni"
+date: "2019/3/20"
+output: html_document
+---
+
+# Overview
+In this project, a prediction would be done regarding the manner of doing one exercise. Raw data would be download from the website and would be explored before doing predition. Throughout the project, I would describe how to built the model, how to use cross validation, what I think the expected out of sample error is, and why I make the choices.
+
+# Data Exploration and Data Slicing
+I first load in the training dataset and testing dataset. From the raw data we would notice that many of the columns contains missing values so they might not be taken into consideration. Also, the original training dataset is splitted into two parts, one part of it would be used as training set for model training, another part of it would be used asmodel prediction validation.
+```{r}
+setwd("/Users/jiayunni/Desktop/njy/college/R/Practical Machining Learning")
+traindata = read.csv("pml-training.csv",header = T)
+testdata = read.csv("pml-testing.csv",header = T)
+a1 = c(1:10,36:48,59:67,83:85,101,112:123,139,150:159)
+a = c(1,a1+1)
+t1 = traindata[,a]
+library(caret)
+set.seed(12)
+inTrain = createDataPartition(y = t1[,1],p=0.7,list = FALSE)
+data.train = t1[inTrain,-1]
+data.validation = t1[-inTrain,-1]
+t2 = testdata[,a]
+data.test = t2[,-1]
+```
+
+# Model Establishment
+I use several methods to train the model and use validation dataset to test the accuracy of the models. Finally I would select the most accurate model to predict the testing dataset. Since the classification is not binary so some methods for binary classification could not be used any more.
+```{r}
+set.seed(12)
+```
+## Decision Tree
+```{r}
+mod1 = train(classe~.,data = data.train,method = "rpart")
+library(rattle)
+fancyRpartPlot(mod1$finalModel)
+pred1 = predict(mod1, newdata = data.validation)
+t1 = table(pred1, data.validation$classe)
+t1
+tp1 = sum(diag(t1))/sum(t1)
+tp1
+```
+## Conditional Tree
+```{r}
+library(party)
+mod2 = ctree(classe~.,data = data.train)
+pred2 = predict(mod2,newdata = data.validation)
+t2 = table(pred2, data.validation$classe)
+t2
+tp2 = sum(diag(t2))/sum(t2)
+tp2
+```
+## GradientBboosting Machine (GBM)
+```{r}
+mod3 = train(classe~.,data = data.train,method = "gbm")
+pred3 = predict(mod3, newdata = data.validation)
+t3 = table(pred3, data.validation$classe)
+t3
+tp3 = sum(diag(t3))/sum(t3)
+tp3
+# very good
+```
+## Random Forest
+```{r}
+#mod4 = train(classe~., data = data.train,method = "rf")
+#pred4 = predict(mod4,newdata = data.validation)
+#t4 = table(pred4,data.validation$classe)
+#t4
+#tp4 = sum(diag(t4))/sum(t4)
+#tp4
+```
+## Latent Dirichlet Allocation (LDA)
+```{r}
+mod5 = train(classe~.,data = data.train,method = "lda")
+pred5 = predict(mod5,newdata = data.validation)
+t5 = table(pred5, data.validation$classe)
+t5
+tp5 = sum(diag(t5))/sum(t5)
+tp5
+```
+## QDA 
+```{r}
+#mod6 = train(classe~., data = data.train, method = "qda")
+#pred6 = predict(mod6, newdata = data.validation)
+#t6 = table(pred6, data.validation$classe)
+#t6
+#tp6 = sum(diag(t6))/sum(t6)
+#tp6
+```
+## LDA + CV
+I use a looping to test the best folds for lda method.
+```{r}
+mod7 = train(classe~.,data = data.train,method = "lda",trControl = trainControl(method = "cv"),number = 3)
+pred7 = predict(mod7,newdata = data.validation)
+table(pred7, data.validation$classe)
+tr = rep(0,10)
+for (i in 1:10) {
+  mod_i = train(classe~.,data = data.train,method = "lda",trControl = trainControl(method = "cv"),number = i)
+  pred_i = predict(mod_i,data.validation)
+  t_i = table(pred_i,data.validation$classe)
+  tr[i] = sum(diag(t_i))/sum(t_i)
+}
+tr
+```
+## Random Forest + Cross Validation
+```{r}
+mod8 = train(classe~.,data = data.train, method = "rf",trControl = trainControl(method = "cv"),number = 3)
+pred8 = predict(mod8,newdata = data.validation)
+t8 = table(pred8,data.validation$classe)
+t8
+tp8 = sum(diag(t8))/sum(t8)
+tp8
+# best , follow by gbm
+```
+## KNN
+```{r}
+mod9 = train(classe~.,data = data.train,method = "knn")
+pred9 = predict(mod9, newdata = data.validation)
+t9 = table(pred9, data.validation$classe)
+t9
+tp9 = sum(diag(t9))/sum(t9)
+tp9
+```
+## Naive Bayes
+```{r}
+mod10 = train(classe~., data = data.train,method = "nb")
+pred10 = predict(mod10,newdata = data.validation)
+t10 = table(pred10, data.validation$classe)
+t10
+tp10 = sum(diag(t10))/sum(t10)
+tp10
+```
+## Combine Model for prediction
+```{r}
+compred1 = data.frame(pred1 = pred1,pred2 = pred2,pred3 = pred3,classe = data.validation$classe)
+commod1 = train(classe~., data = compred1,method = "rf")
+comPred1 = predict(commod1,newdata = data.validation)
+tc1 = table(comPred1,data.validation$classe)
+tc1
+tpc1 = sum(diag(tc1))/sum(tc1)
+tpc1
+
+compred2 = data.frame(pred1 = pred1,pred2 = pred2,classe = data.validation$classe)
+commod2 = train(classe~., data = compred2,method = "rf")
+comPred2 = predict(commod2,newdata = data.validation)
+tc2 = table(comPred2,data.validation$classe)
+tc2
+tpc2 = sum(diag(tc2))/sum(tc2)
+tpc2
+
+
+```
+
+# Final Prediction for testing data
+From the validation results above, I choose method of "GBM" and "Random Forest + Cross Validation" as final model for prediction since the accuracy of them ar the most accurate ones.
+```{r}
+pred.test.1 = predict(mod3,data.test)
+pred.test.1
+pred.test.2 = predict(mod8,data.test)
+pred.test.2
+
+
+```
